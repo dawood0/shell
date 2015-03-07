@@ -41,7 +41,6 @@ command: simple_command ;
 
 simple_command:	
 command_with_pipe iomodifier background_opt NEWLINE {
-  printf("   Yacc: Execute command\n");
   Command::_currentCommand.execute();
 }
 | NEWLINE 
@@ -67,14 +66,12 @@ arg_list argument
 
 argument:
 WORD {
-  printf("   Yacc: insert argument \"%s\"\n", $1);
   Command::_currentSimpleCommand->insertArgument( $1 );\
 }
 ;
 
 command_word:
 WORD {
-  printf("   Yacc: insert command \"%s\"\n", $1);	       
   Command::_currentSimpleCommand = new SimpleCommand();
   Command::_currentSimpleCommand->insertArgument( $1 );
 }
@@ -87,31 +84,57 @@ iomodifier iomodifier_opt
 
 iomodifier_opt: 
 LESS WORD {
-  printf("   Yacc: insert input \"%s\"\n", $2);
-  Command::_currentCommand._inputFile = $2;
+  if(!Command::_currentCommand._inputFile)
+    Command::_currentCommand._inputFile = $2;
+  else {
+    yyerror("Ambiguous input redirect.\n");
+    Command::_currentCommand._error = true;
+  }
 }
 | GREAT WORD {
-  printf("   Yacc: insert output \"%s\"\n", $2);
-  Command::_currentCommand._outFile = $2;
+  if(!Command::_currentCommand._outFile)
+    Command::_currentCommand._outFile = $2;
+  else {
+    yyerror("Ambiguous output redirect.\n");
+    Command::_currentCommand._error = true;
+  }
 } 
 | GREATGREAT WORD {
-  printf("   Yacc: insert append output \"%s\"\n", $2);
-  Command::_currentCommand._outFile = $2;
-  Command::_currentCommand._append = true;
+  if(!Command::_currentCommand._outFile){
+    Command::_currentCommand._outFile = $2;
+    Command::_currentCommand._append = true;
+  }
+  else {
+    yyerror("Ambiguous output redirect.\n");
+    Command::_currentCommand._error = true;
+  }
+
 }
 | GREATAND WORD {
-  printf("   Yacc: insert error output \"%s\"\n", $2);
-  Command::_currentCommand._errFile = $2;
+  if(!Command::_currentCommand._errFile){
+    Command::_currentCommand._errFile = $2;
+    Command::_currentCommand._outFile = $2;
+  }
+  else {
+    yyerror("Ambiguous output redirect.\n");
+    Command::_currentCommand._error = true;
+  }
+
 }
 | GREATGREATAND WORD {
-  printf("   Yacc: insert append error output \"%s\"\n", $2);
-  Command::_currentCommand._errFile = $2;
-  Command::_currentCommand._append = true;
+  if(!Command::_currentCommand._errFile){
+    Command::_currentCommand._errFile = $2;
+    Command::_currentCommand._outFile = $2;
+    Command::_currentCommand._append = true;
+  }
+  else {
+    yyerror("Ambiguous output redirect.\n");
+    Command::_currentCommand._error = true;
+  }
 } ;
 
 background_opt:
 AND {
-  printf("   Yacc: Background\n");
   Command::_currentCommand._background = 1;
 } 
 | /* can be empty */ 

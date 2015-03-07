@@ -6,7 +6,7 @@
 struct SimpleCommand {
   // Available space for arguments currently preallocated
   int _numberOfAvailableArguments;
-
+  
   // Number of arguments
   int _numberOfArguments;
   char ** _arguments;
@@ -24,6 +24,7 @@ struct Command {
   char * _errFile;
   int _background;
   bool _append;
+  bool _error;
   
   void prompt();
   void print();
