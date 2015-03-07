@@ -1,4 +1,3 @@
-
 /*
  *
  * CS-252 Spring 2015
@@ -12,31 +11,55 @@
 #include <string.h>
 #include "y.tab.h"
 
-static  void yyunput (int c,char *buf_ptr  );
+  static  void yyunput (int c,char *buf_ptr  );
 
-void myunputc(int c) {
+  void myunputc(int c) {
     unput(c);
-}
+  }
 
 %}
 
 %%
 
 \n 	{
-		return NEWLINE;
-	}
+  return NEWLINE;
+}
 
 [ \t] 	{
-		/* Discard spaces and tabs */
-     	}	
+  /* Discard spaces and tabs */
+}	
+
+"&"     {
+  return AND;
+}
 
 ">" 	{
-		return GREAT;
-	}
+  return GREAT;
+}
+
+">>" 	{
+  return GREATGREAT;
+}
+
+">&"     {
+  return GREATAND;
+}
+
+">>&"     {
+  return GREATGREATAND;
+}
+
+"<"     {
+  return LESS;
+}
+
+"|"     {
+  return PIPE;
+}
+
 
 [^ \t\n][^ \t\n]*  {
-		/* Assume that file names have only alpha chars */
-		yylval.string_val = strdup(yytext);
-		return WORD;
-	}
-
+  /* Assume that file names have only alpha chars */
+  yylval.string_val = strdup(yytext);
+  return WORD;
+}
