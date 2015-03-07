@@ -1,4 +1,3 @@
-
 /*
  * CS252: Shell project
  *
@@ -21,6 +20,9 @@
 #include <fcntl.h>
 
 #include "command.h"
+
+extern char **environ;
+
 
 SimpleCommand::SimpleCommand()
 { 
@@ -195,6 +197,29 @@ Command::execute()
 
   for (int i = 0; i < _numberOfSimpleCommands; i++) {
 
+    if( !strcmp(_simpleCommands[i]->_arguments[0],"exit") )
+      {
+	// Restore input, output, and error
+	dup2(defaultin, 0);
+	dup2(defaultout, 1);
+	dup2(defaulterr, 2);
+	
+	// Close uwnanted file descriptors
+	close(command_input);
+	close(command_output);
+	close(command_error);
+	close(defaultin);
+	close(defaultout);
+	close(defaulterr);
+	close(pin);
+	
+	clear();
+	
+	printf("Good Bye!!\n");
+	fflush(stdout);
+	exit(0);
+      }
+
     if(pipe(fd) == -1) { 
       perror("Piper error\n"); 
       clear();
@@ -226,6 +251,14 @@ Command::execute()
       close(command_input);
       close(command_output);
       close(command_error);
+      
+      if( !strcmp(_simpleCommands[i]->_arguments[0],"printenv") ){
+	int j = 0;
+	while(environ[j])
+	  printf("%s\n",environ[j++]);
+	clear();
+	exit(0);
+      }
       
       execvp(_simpleCommands[i]->_arguments[0], _simpleCommands[i]->_arguments);
       perror("Exec error\n");
@@ -262,6 +295,16 @@ Command::execute()
 }
 
 // Shell implementation
+extern "C" void handleSig(int sig)
+{
+  switch(sig){
+  case SIGINT:
+    Command::_currentCommand.clear();
+    printf("\n");
+    Command::_currentCommand.prompt();
+    break;
+  }
+}
 
 void
 Command::prompt()
@@ -279,6 +322,10 @@ int yyparse(void);
 
 int main(int argc, char **argv)
 {
+  struct sigaction sa;
+  sa.sa_handler = handleSig;
+  sa.sa_flags = SA_RESTART;
+  sigaction(SIGINT, &sa, NULL);
   Command::_currentCommand.prompt();
   yyparse();
   

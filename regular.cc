@@ -1,70 +1,108 @@
-
 #include <sys/types.h>
 #include <regex.h>
 #include <stdio.h>
+#include <dirent.h>
+#include <string.h>
 #include <stdlib.h>
+#include <vector>
+#include <string>
 
-const char * usage = ""
-"Usage:\n"
-"      regular regular-expresion string\n"
-"\n"
-"      Tells if \"string\" matches \"regular-expresion\".\n"
-"\n"
-"      '^' and '$' characters are added at the beginning and\n"
-"      end of \"regular-expresion\" to force match of the entire\n"
-"      \"string\"\n"
-"\n"
-"	To know more about regular expresions type \"man ed\"\n"
-"Try:\n"
-"      bash> ./regular aaa aaa\n"
-"      bash> ./regular \"a*\" aaaa\n"
-"      bash> ./regular \"a*\" aaa\n"
-"      bash> ./regular \"a*\" aaaf\n"
-"      bash> ./regular \"a.*\" akjhkljh \n"
-"      bash> ./regular \"a.*\" jkjhkj\n"
-"      bash> ./regular \"a.*\" aaalklkjlk\n"
-"      bash> ./regular \".*\\..*\" kljhkljhlj.lkjhlkj\n"
-"      bash> ./regular \".*\\..*\" kljhkljhlj\n\n";
+std::vector<char *> expandWildCard(char * string){
+  std::vector<char *> a;
+  int length = strlen(string);
+  char * regExp = (char*)malloc(1024*sizeof(char));
+  int j = 1;
+  regExp[0] = '^';
+  for(int i = 0; i < length; i++) {
+    if(string[i] == '*')
+      if(i) {
+	strcat(regExp,"[:print:]*");
+      }
+      else {
+	strcat(regExp,"[^.][^[:blank:]]*");
+      }
+    else if (string[i] == '?')
+      if(i) {
+	strcat(regExp,"[:print:]?");
+      }
+      else {
+	strcat(regExp,"[^.]?");
+      }
+    else {
+      j = strlen(regExp);
+      regExp[j] = string[i];
+    }
+  }
+  j = strlen(regExp);
+  regExp[j] = '$';
+  printf("%s\n",regExp);
 
-int
-main(int argc, char ** argv)
-{
-	if ( argc < 3 ) {
-		fprintf( stderr, "%s", usage );
-		exit( -1 );
-	}
+  DIR * dip;
+  struct dirent * dit;
 
-	const char * regularExp = argv[1];
-	const char * stringToMatch = argv[2];
+  if((dip = opendir(".")) == NULL) {
+    printf("A\n");
+    exit(0);
+  }
 
-	/*
-	 *  Add ^ and $ at the beginning and end of regular expression
-	 *  to force match of the entire string. See "man ed".
-	 */
-	char regExpComplete[ 1024 ];
-	sprintf(regExpComplete, "^%s$", regularExp );
+  regex_t re;
+  int result = regcomp( &re, regExp,  REG_EXTENDED|REG_NOSUB);
 
-	regex_t re;	
-	int result = regcomp( &re, regExpComplete,  REG_EXTENDED|REG_NOSUB);
-	if( result != 0 ) {
-		fprintf( stderr, "%s: Bad regular expresion \"%s\"\n",
-			 argv[ 0 ], regExpComplete );
-		exit( -1 );
-      	}
+  if( result != 0 ) {
+    printf("Aa\n");
+    exit(0);
+  }
+  regmatch_t match;
+  while((dit = readdir(dip)) != NULL) {
+    result = regexec( &re, dit->d_name, 1, &match, 0 );
+    if(!result)
+      printf("%s, %d\n",dit->d_name, result);
+  }
 
-	regmatch_t match;
-	result = regexec( &re, stringToMatch, 1, &match, 0 );
+  exit(0);
+  a.push_back(regExp);
+  return a;
+  char * tok;
+  tok = strtok(string,"/");
+  while(tok != NULL){
+    printf("%s\n",tok);
+    tok = strtok(NULL,"/");
+  }
+  a.push_back("AAA");
+  return a;
 
-	const char * matchResult = "MATCHES";
-	if ( result != 0 ) {
-		matchResult = "DOES NOT MATCH";
-	}
+  
+  
 
-	fprintf( stderr, "\t\"%s\" %s \"%s\"\n", matchResult,
-		regExpComplete, stringToMatch);
+  /*
+  //char * regExp = (char*)malloc(strlen(string)*sizeof(char));
+  sprintf(regExp,"^%s$",string);
+  regex_t re;
+  int result = regcomp( &re, regExp,  REG_EXTENDED|REG_NOSUB);
 
-	regfree(&re);
+  if( result != 0 ) {
+    exit(0);
+  }
 
-	return 0;
+  regmatch_t match;
+  while((dit = readdir(dip)) != NULL) {
+    result = regexec( &re, dit->d_name, 1, &match, 0 );
+    printf("%s, %d\n",dit->d_name, result);
+  }
+
+  free(regExp);
+  */
+  return a;
 }
 
+
+int main(int argc, char ** argv){
+  char string[1024];
+  strcpy(string,"*.c");
+  std::vector<char *> a = expandWildCard(string);
+  int i = 0;
+  for(i = 0; i < a.size(); i++)
+    printf("%s\n",a[i]);
+  a.pop_back();
+  return 0;
+}

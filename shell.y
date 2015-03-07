@@ -25,6 +25,11 @@
   //#define yylex yylex
 #include <stdio.h>
 #include "command.h"
+#include <string.h>
+#include <dirent.h>
+#include <sys/types.h>
+#include <regex.h>
+
   void yyerror(const char * s);
   int yylex();
 
@@ -66,7 +71,36 @@ arg_list argument
 
 argument:
 WORD {
-  Command::_currentSimpleCommand->insertArgument( $1 );\
+  if( strstr($1,"*") == NULL && strstr($1,"?") == NULL ) {
+    Command::_currentSimpleCommand->insertArgument( $1 );
+    return 0;
+  }
+   
+  DIR * dip;
+  struct dirent * dit;
+  
+  if((dip = opendir(".")) == NULL) {
+    yyerror("Open dir");
+    Command::_currentCommand._error = true;
+    return 0;
+  }
+    
+  char regExp[1024];
+  sprintf(regExp,"^%s$",$1);
+  regex_t re;
+  int result = regcomp( &re, regExp,  REG_EXTENDED|REG_NOSUB);
+
+  if( result != 0 ) {
+    yyerror("Bad Wildcard");
+    Command::_currentCommand._error = true;
+    return 0;
+  }
+
+  regmatch_t match;
+  while((dit = readdir(dip)) != NULL) {
+    result = regexec( &re, dit->d_name, 1, &match, 0 );
+    printf("%s, %d\n",dit->d_name, result);
+  }
 }
 ;
 
