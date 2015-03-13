@@ -22,11 +22,9 @@ extern char **environ;
 
 // From qsort man pages
 int cmpstr(void const *a, void const *b) { 
-    char const *aa = (char const *)a;
-    char const *bb = (char const *)b;
-
-    return strncmp(aa,bb,1024);
-
+  const char **ia = (const char **)a;
+  const char **ib = (const char **)b;
+  return strcasecmp(*ia, *ib);
 }
 
 SimpleCommand::SimpleCommand()
@@ -322,6 +320,8 @@ Command::prompt()
 
 void expandWildCards(char * arg)
 {
+  
+  
   if(strchr(arg,'*') == NULL && strchr(arg,'?') == NULL){
     Command::_currentSimpleCommand->insertArgument(arg);
     return;
@@ -359,7 +359,7 @@ void expandWildCards(char * arg)
   struct dirent * ent;
   int maxEntries = 20;
   int nEntries = 0;
-  struct dirent ** array = (struct dirent **) malloc(maxEntries*sizeof(struct dirent*));
+  char ** array = (char **) malloc(maxEntries*sizeof(char*));
   if (array == NULL) {
     perror("Insufficient memory");
     Command::_currentCommand._error = true;
@@ -371,25 +371,24 @@ void expandWildCards(char * arg)
        !((arg[0] == '*' || arg[0] == '?') && ent->d_name[0] == '.' )) {
       if (nEntries == maxEntries) {
 	maxEntries *= 2;
-	array = (struct dirent **) realloc(array, maxEntries*sizeof(struct dirent*));
+	array = (char **) realloc(array, maxEntries*sizeof(char*));
 	if (array == NULL) {
 	  perror("Insufficient memory");
 	  Command::_currentCommand._error = true;
 	  return;	  
 	}
       }
-      array[nEntries] = ent;
+      array[nEntries] = strdup(ent->d_name);
       nEntries += 1;
     }
   }
   closedir(dir);
 
-  qsort(array, nEntries, sizeof(char*), alphasort);
+  qsort(array, nEntries, sizeof(char*), cmpstr);
   //  sortArrayStrings(array, nEntries);
-  for (int i = 0; i < nEntries; i++) {
-    Command::_currentSimpleCommand->insertArgument(array[i]->d_name);
-    printf("=%s\n",array[i]);
-  }
+  for (int i = 0; i < nEntries; i++) 
+    Command::_currentSimpleCommand->insertArgument(array[i]);
+
   regfree(&re);
   free(rege);
   free(array);
