@@ -38,4 +38,6 @@ struct Command {
   static SimpleCommand *_currentSimpleCommand;
 };
 
+void expandWildCards(char * arg);
+
 #endif

@@ -1,11 +1,6 @@
 /*
  * CS252: Shell project
  *
- * Template file.
- * You will need to add more code here to execute the command table.
- *
- * NOTE: You are responsible for fixing any bugs this code may have!
- *
  */
 
 #include <stdio.h>
@@ -18,11 +13,21 @@
 //Added for open()
 #include <sys/stat.h>
 #include <fcntl.h>
-
+//For wildcarding
+#include <regex.h>
+#include <dirent.h>
 #include "command.h"
 
 extern char **environ;
 
+// From qsort man pages
+int cmpstr(void const *a, void const *b) { 
+    char const *aa = (char const *)a;
+    char const *bb = (char const *)b;
+
+    return strncmp(aa,bb,1024);
+
+}
 
 SimpleCommand::SimpleCommand()
 { 
@@ -314,6 +319,83 @@ Command::prompt()
   }
   fflush(stdout);
 }
+
+void expandWildCards(char * arg)
+{
+  if(strchr(arg,'*') == NULL && strchr(arg,'?') == NULL){
+    Command::_currentSimpleCommand->insertArgument(arg);
+    return;
+  }
+  
+  char * rege = (char *) malloc(2*strlen(arg) + 10);
+  char * a = arg;
+  char * r = rege;
+  // Replacing * and ? with regex characters 
+  *r = '^'; r++;
+  while(*a) {
+    if (*a == '*') { *r='.'; r++; *r='*'; r++;}
+    else if (*a == '?') { *r='.' ; r++;}
+    else if (*a == '.') { *r='\\'; r++; *r='.'; r++;}
+    else { *r=*a; r++;}
+    a++;
+  }
+  *r='$'; r++; *r=0;
+  // Compile RegEx
+  regex_t re;
+  int result = regcomp(&re, rege, REG_EXTENDED|REG_NOSUB);
+  if(result != 0) {
+    perror("RegEx Compile");
+    Command::_currentCommand._error = true;
+    return;
+  }
+  // Check files in Directory
+  DIR * dir = opendir(".");
+  if (dir == NULL) {
+    perror("Cannot open directory .");
+    Command::_currentCommand._error = true;
+    return;
+  }
+  
+  struct dirent * ent;
+  int maxEntries = 20;
+  int nEntries = 0;
+  struct dirent ** array = (struct dirent **) malloc(maxEntries*sizeof(struct dirent*));
+  if (array == NULL) {
+    perror("Insufficient memory");
+    Command::_currentCommand._error = true;
+    return;	  
+  }
+  regmatch_t match;
+  while( (ent = readdir(dir)) != NULL) {
+    if(regexec(&re, ent->d_name, 1, &match, 0) == 0 && 
+       !((arg[0] == '*' || arg[0] == '?') && ent->d_name[0] == '.' )) {
+      if (nEntries == maxEntries) {
+	maxEntries *= 2;
+	array = (struct dirent **) realloc(array, maxEntries*sizeof(struct dirent*));
+	if (array == NULL) {
+	  perror("Insufficient memory");
+	  Command::_currentCommand._error = true;
+	  return;	  
+	}
+      }
+      array[nEntries] = ent;
+      nEntries += 1;
+    }
+  }
+  closedir(dir);
+
+  qsort(array, nEntries, sizeof(char*), alphasort);
+  //  sortArrayStrings(array, nEntries);
+  for (int i = 0; i < nEntries; i++) {
+    Command::_currentSimpleCommand->insertArgument(array[i]->d_name);
+    printf("=%s\n",array[i]);
+  }
+  regfree(&re);
+  free(rege);
+  free(array);
+}
+
+
 
 Command Command::_currentCommand;
 SimpleCommand * Command::_currentSimpleCommand;
