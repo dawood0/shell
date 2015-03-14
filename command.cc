@@ -1,5 +1,6 @@
 /*
  * CS252: Shell project
+ * Aishwarya Ajay
  *
  */
 
@@ -24,7 +25,7 @@ extern char **environ;
 int cmpstr(void const *a, void const *b) { 
   const char **ia = (const char **)a;
   const char **ib = (const char **)b;
-  return strcasecmp(*ia, *ib);
+  return strcmp(*ia, *ib);
 }
 
 SimpleCommand::SimpleCommand()
@@ -222,13 +223,112 @@ Command::execute()
 	fflush(stdout);
 	exit(0);
       }
+    else if(!strcmp(_simpleCommands[i]->_arguments[0],"setenv"))
+      {
+	// Restore input, output, and error
+	dup2(defaultin, 0);
+	dup2(defaultout, 1);
+	dup2(defaulterr, 2);
+	
+	// Close uwnanted file descriptors
+	close(command_input);
+	close(command_output);
+	close(command_error);
+	close(defaultin);
+	close(defaultout);
+	close(defaulterr);
+	close(pin);
+	
+	if(_simpleCommands[i]->_numberOfArguments == 3) {
+	  char * string = (char * )malloc((strlen(_simpleCommands[i]->_arguments[1])+strlen(_simpleCommands[i]->_arguments[2])+2)*sizeof(char));
+	  strcpy(string,_simpleCommands[i]->_arguments[1]);
+	  strcat(string,(char *) "=");
+	  strcat(string,_simpleCommands[i]->_arguments[2]);
+	  putenv(string);
+	}
+	else
+	  printf("Invalid usage\n");
+	
+	clear();
+	prompt();
+	return;
+      }
+    else if(!strcmp(_simpleCommands[i]->_arguments[0],"unsetenv"))
+      {	
+	// Restore input, output, and error
+	dup2(defaultin, 0);
+	dup2(defaultout, 1);
+	dup2(defaulterr, 2);
+	
+	// Close uwnanted file descriptors
+	close(command_input);
+	close(command_output);
+	close(command_error);
+	close(defaultin);
+	close(defaultout);
+	close(defaulterr);
+	close(pin);
 
+	if(_simpleCommands[i]->_numberOfArguments == 2) {
+
+	  int j = 0;
+	  bool shift = false;
+	  int eq = 1;
+	  while(environ[j]) {
+	    //	    char * s =strstr(environ[j],"=");
+	    
+	    if(!shift) eq = strncmp(environ[j],
+				    _simpleCommands[i]->_arguments[1],
+				    strlen(_simpleCommands[i]->_arguments[1])
+				    );
+	    if(eq == 0) shift = true;
+	    if(shift)
+	      if(environ[j+1])
+		strcpy(environ[j],environ[j+1]);
+	      else
+		environ[j] = NULL;
+	    j += 1;
+	  }
+	}
+	else
+	  printf("Invalid usage\n");
+	
+	clear();
+	prompt();
+	return;
+      }
+    else if(!strcmp(_simpleCommands[i]->_arguments[0],"cd"))
+      {	
+	// Restore input, output, and error
+	dup2(defaultin, 0);
+	dup2(defaultout, 1);
+	dup2(defaulterr, 2);
+	
+	// Close uwnanted file descriptors
+	close(command_input);
+	close(command_output);
+	close(command_error);
+	close(defaultin);
+	close(defaultout);
+	close(defaulterr);
+	close(pin);
+
+	if(_simpleCommands[i]->_numberOfArguments == 2) 
+	  chdir(_simpleCommands[i]->_arguments[1]);
+	else 
+	  chdir(getenv("HOME"));
+	
+	clear();
+	prompt();
+	return;
+      }
+    
     if(pipe(fd) == -1) { 
       perror("Piper error\n"); 
       clear();
       exit(2); 
     }
-      
+    
     pid = fork();
     
     if (pid < 0) {
@@ -268,14 +368,14 @@ Command::execute()
       clear();
       exit(1);
     } 
-
+    
     dup2(fd[0],pin);
     close(fd[0]);
     close(fd[1]);
   }
-	  
+  
   if(!_background) waitpid(pid,0,0);
-
+  
   // Restore input, output, and error
   dup2(defaultin, 0);
   dup2(defaultout, 1);
@@ -289,14 +389,14 @@ Command::execute()
   close(defaultout);
   close(defaulterr);
   close(pin);
-
+  
   // Clear to prepare for next command
   clear();
-	
+  
   // Print new prompt
   prompt();
 }
-
+  
 // Shell implementation
 extern "C" void handleSig(int sig)
 {
@@ -305,6 +405,10 @@ extern "C" void handleSig(int sig)
     Command::_currentCommand.clear();
     printf("\n");
     Command::_currentCommand.prompt();
+    break;
+  case SIGCHLD:
+    wait3(0,0,NULL);
+    while(waitpid(-1, NULL, WNOHANG) > 0);
     break;
   }
 }
@@ -320,7 +424,7 @@ Command::prompt()
 
 void expandWildCard(char * prefix, char * suffix)
 { 
-  //printf("ewc1 : %s\n",prefix);
+  //  printf("ewc1 : %s, %s\n",prefix,suffix);
   
   if(!suffix[0]) {
     //printf("arg : %s\n",prefix);
@@ -431,8 +535,14 @@ void expandWildCard(char * prefix, char * suffix)
     else
       sprintf(newPrefix, "%s/%s", prefix, array[i]);
     //    printf("np2 : %s\n",newPrefix);
-    expandWildCard(newPrefix, suffix);
-  }
+    struct stat buf;
+    int st = stat(newPrefix, &buf);
+    if(!S_ISDIR(buf.st_mode) && *suffix != 0)
+      continue;
+    else
+      expandWildCard(newPrefix, suffix);
+
+  } 
 
   regfree(&re);
   free(rege);
@@ -448,10 +558,13 @@ int yyparse(void);
 
 int main(int argc, char **argv)
 {
-  struct sigaction sa;
-  sa.sa_handler = handleSig;
-  sa.sa_flags = SA_RESTART;
-  sigaction(SIGINT, &sa, NULL);
+  struct sigaction si, sc;
+  si.sa_handler = handleSig;
+  si.sa_flags = SA_RESTART;
+  sc.sa_handler = handleSig;
+  sc.sa_flags = SA_RESTART;
+  sigaction(SIGINT, &si, NULL);
+  sigaction(SIGCHLD, &sc, NULL);
   Command::_currentCommand.prompt();
   yyparse();
   
