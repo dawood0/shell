@@ -318,17 +318,52 @@ Command::prompt()
   fflush(stdout);
 }
 
-void expandWildCards(char * arg)
-{
+void expandWildCard(char * prefix, char * suffix)
+{ 
+  //printf("ewc1 : %s\n",prefix);
   
-  
-  if(strchr(arg,'*') == NULL && strchr(arg,'?') == NULL){
-    Command::_currentSimpleCommand->insertArgument(arg);
+  if(!suffix[0]) {
+    //printf("arg : %s\n",prefix);
+    Command::_currentSimpleCommand->insertArgument(strdup(prefix));
     return;
   }
   
-  char * rege = (char *) malloc(2*strlen(arg) + 10);
-  char * a = arg;
+  char * s = strchr(suffix, '/');
+  char component[1024];
+
+  if (s != NULL) {
+    strncpy(component,suffix,s-suffix);
+    component[s-suffix] = 0;
+    suffix = s + 1;
+    //    printf("comp1 : %s\n",component);
+  } 
+  else {
+    strcpy(component, suffix);
+    //    component[strlen(suffix)+1] = 0;
+    suffix += strlen(suffix);
+    //    printf("comp2 : %s\n",component);
+  }
+    
+  char newPrefix[1024];
+
+  if(strchr(component,'*') == NULL && strchr(component,'?') == NULL){
+    //    Command::_currentSimpleCommand->insertArgument(arg);
+    if(!strlen(prefix) && !strlen(component))
+      sprintf(newPrefix, "/");
+    else if(!strlen(prefix) && strlen(component))
+      sprintf(newPrefix, "%s", component);
+    else if(!strcmp(prefix,"/"))
+      sprintf(newPrefix, "/%s", component);
+    else
+      sprintf(newPrefix, "%s/%s", prefix, component);
+
+    expandWildCard(newPrefix, suffix);
+    return;
+  }
+  
+  
+  char * rege = (char *) malloc(2*strlen(component) + 10);
+  char * a = component;
   char * r = rege;
   // Replacing * and ? with regex characters 
   *r = '^'; r++;
@@ -349,9 +384,13 @@ void expandWildCards(char * arg)
     return;
   }
   // Check files in Directory
-  DIR * dir = opendir(".");
+  DIR * dir = NULL;
+
+  if(strlen(prefix)) dir = opendir(prefix);
+  else dir = opendir(".");
+
   if (dir == NULL) {
-    perror("Cannot open directory .");
+    perror("Cannot open directory");
     Command::_currentCommand._error = true;
     return;
   }
@@ -368,7 +407,7 @@ void expandWildCards(char * arg)
   regmatch_t match;
   while( (ent = readdir(dir)) != NULL) {
     if(regexec(&re, ent->d_name, 1, &match, 0) == 0 && 
-       !((arg[0] == '*' || arg[0] == '?') && ent->d_name[0] == '.' )) {
+       !((component[0] == '*' || component[0] == '?') && ent->d_name[0] == '.' )) {
       if (nEntries == maxEntries) {
 	maxEntries *= 2;
 	array = (char **) realloc(array, maxEntries*sizeof(char*));
@@ -386,8 +425,14 @@ void expandWildCards(char * arg)
 
   qsort(array, nEntries, sizeof(char*), cmpstr);
   //  sortArrayStrings(array, nEntries);
-  for (int i = 0; i < nEntries; i++) 
-    Command::_currentSimpleCommand->insertArgument(array[i]);
+  for (int i = 0; i < nEntries; i++) {
+    if(!strlen(prefix))
+      sprintf(newPrefix, "%s", array[i]);
+    else
+      sprintf(newPrefix, "%s/%s", prefix, array[i]);
+    //    printf("np2 : %s\n",newPrefix);
+    expandWildCard(newPrefix, suffix);
+  }
 
   regfree(&re);
   free(rege);

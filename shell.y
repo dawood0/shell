@@ -71,7 +71,7 @@ arg_list argument
 
 argument:
 WORD {
-  expandWildCards($1);
+  expandWildCard(strdup(""),$1);
   //    Command::_currentSimpleCommand->insertArgument( $1 );
 }
 ;
